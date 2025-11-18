@@ -1,0 +1,102 @@
+const URL = "MODEL_URL_HERE";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Smart AI Gym Coach</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+    video { border: 2px solid #444; border-radius: 8px; max-width: 100%; }
+    #status { margin-top: 15px; font-size: 1.2em; }
+    #exerciseName { font-weight: bold; font-size: 1.5em; margin-top: 10px; }
+    #repCount { font-size: 1.3em; margin-top: 5px; }
+    button { margin-top: 15px; padding: 10px 20px; font-size: 1em; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <h1>Smart AI Gym Coach</h1>
+  <p>An AI-powered fitness coach that uses Teachable Machine to detect exercises, count reps, and give feedback.</p>
+
+  <video id="webcam" width="640" height="480" autoplay muted playsinline></video>
+  <div id="status">Loading model...</div>
+  <div id="exerciseName"></div>
+  <div id="repCount"></div>
+  <button id="startBtn">Start Workout</button>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.9.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+
+  <script>
+    const URL = "MODEL_URL_HERE";  // <-- Replace this with your Teachable Machine model URL
+
+    let model, webcam, maxPredictions;
+    let repCount = 0;
+    let lastExercise = "";
+    let detecting = false;
+
+    const statusElement = document.getElementById("status");
+    const exerciseNameElement = document.getElementById("exerciseName");
+    const repCountElement = document.getElementById("repCount");
+    const startBtn = document.getElementById("startBtn");
+
+    async function init() {
+      statusElement.innerText = "Loading model...";
+      model = await tmImage.load(URL + "model.json", URL + "metadata.json");
+      maxPredictions = model.getTotalClasses();
+
+      // Setup webcam
+      const flip = true; // webcam flip for selfie view
+      webcam = new tmImage.Webcam(640, 480, flip);
+      await webcam.setup(); // request access to webcam
+      await webcam.play();
+      window.requestAnimationFrame(loop);
+      document.getElementById("webcam").appendChild(webcam.canvas);
+      statusElement.innerText = "Model loaded. Click Start Workout.";
+      startBtn.disabled = false;
+    }
+
+    async function loop() {
+      if (detecting) {
+        webcam.update(); // update webcam frame
+        const prediction = await model.predict(webcam.canvas);
+
+        // Find highest probability class
+        let highestProb = 0;
+        let highestClass = "";
+        prediction.forEach(p => {
+          if (p.probability.toFixed(2) > highestProb) {
+            highestProb = p.probability.toFixed(2);
+            highestClass = p.className;
+          }
+        });
+
+        exerciseNameElement.innerText = "Exercise: " + highestClass;
+
+        // Simple rep counting logic: count when exercise changes and confidence is high
+        if (highestProb > 0.8) {
+          if (highestClass !== lastExercise) {
+            repCount++;
+            repCountElement.innerText = "Reps: " + repCount;
+            lastExercise = highestClass;
+          }
+        }
+      }
+      window.requestAnimationFrame(loop);
+    }
+
+    startBtn.addEventListener("click", () => {
+      detecting = true;
+      repCount = 0;
+      repCountElement.innerText = "Reps: 0";
+      statusElement.innerText = "Workout started. Move in front of the camera.";
+      startBtn.disabled = true;
+    });
+
+    init();
+  </script>
+
+</body>
+</html>
+
